@@ -447,6 +447,10 @@ a{color:var(--primary);text-decoration:none}
             <div id="dashSubjectStats"></div>
           </div>
           <div class="card flex-1 mb0">
+            <div class="card-title"><span class="left">薄弱考点 Top5</span></div>
+            <div id="dashWeakPoints"></div>
+          </div>
+          <div class="card flex-1 mb0">
             <div class="card-title"><span class="left">快捷入口</span></div>
             <div class="quick-grid">
               <div class="quick-item" data-goto="upload"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg></div><p>上传错题</p></div>
@@ -504,7 +508,7 @@ a{color:var(--primary);text-decoration:none}
             <div class="form-item"><label>题目 *</label><textarea class="textarea" id="fQuestion" placeholder="输入或通过OCR识别题目内容，支持 $公式$ 渲染" rows="4"></textarea></div>
             <div class="form-row">
               <div class="form-item"><label>答案</label><textarea class="textarea" id="fAnswer" rows="2" placeholder="选填"></textarea></div>
-              <div class="form-item"><label>解析</label><textarea class="textarea" id="fAnalysis" rows="2" placeholder="选填，可让AI归纳"></textarea></div>
+              <div class="form-item"><label style="display:flex;align-items:center;gap:8px">解析<button class="btn btn-outline btn-sm" id="btnAiAnalysis" type="button">AI解析</button></label><textarea class="textarea" id="fAnalysis" rows="2" placeholder="选填，可让AI生成"></textarea></div>
             </div>
             <div class="form-item">
               <label>错因 <button class="btn btn-sm btn-outline" id="btnAiReason" style="margin-left:8px">AI归纳错因</button></label>
@@ -582,6 +586,7 @@ a{color:var(--primary);text-decoration:none}
             <b id="rvProgressText" style="white-space:nowrap">第 1 / 10 题</b>
             <div class="bar"><i id="rvProgressBar" style="width:0%"></i></div>
             <span id="rvKpTag" class="tag"></span>
+            <span id="rvFsrsHint" style="font-size:12px;color:var(--muted)"></span>
           </div>
           <div class="card review-card">
             <h2 style="font-size:19px;margin-bottom:16px">请先做题，再查看答案</h2>
@@ -591,11 +596,16 @@ a{color:var(--primary);text-decoration:none}
             <div class="ans-panel" id="rvAnsPanel">
               <div id="rvAnswerContent"></div>
               <div class="review-actions">
-                <button class="btn btn-success" id="btnCorrect">我做对了</button>
-                <button class="btn btn-danger" id="btnWrong">我做错了</button>
+                <button class="btn btn-danger" id="rvG1">遗忘</button>
+                <button class="btn btn-outline" id="rvG2" style="color:var(--warning);border-color:var(--warning)">吃力</button>
+                <button class="btn btn-primary" id="rvG3">会</button>
+                <button class="btn btn-success" id="rvG4">秒杀</button>
+              </div>
+              <div class="review-actions" style="margin-top:10px">
                 <button class="btn btn-outline" id="btnMaster">标记已掌握</button>
                 <button class="btn btn-ghost" id="btnRvVariation">生成变式题</button>
               </div>
+              <p style="font-size:12px;color:var(--muted);margin:8px 0 0">FSRS四级评分：1 遗忘 · 2 吃力 · 3 会 · 4 秒杀（显示答案后可直接按数字键，空格键显示答案）</p>
             </div>
           </div>
         </div>
@@ -706,7 +716,7 @@ a{color:var(--primary);text-decoration:none}
             <div style="margin-top:14px"><label class="checkbox"><input type="checkbox" id="eyeMode"> 护眼模式（米黄低对比）</label></div>
           </div>
           <div class="card mb0">
-            <div class="card-title"><span class="left">复习设置（艾宾浩斯间隔 · 天）</span></div>
+            <div class="card-title"><span class="left">复习设置（FSRS 调度）</span></div>
             <div class="form-row">
               <input class="input" type="number" min="1" id="iv1" title="第1次间隔">
               <input class="input" type="number" min="1" id="iv2">
@@ -714,7 +724,10 @@ a{color:var(--primary);text-decoration:none}
               <input class="input" type="number" min="1" id="iv4">
               <input class="input" type="number" min="1" id="iv5">
             </div>
-            <p style="font-size:12px;color:var(--muted);margin-top:8px">默认 1 / 2 / 4 / 7 / 15 天。做对进入下一阶段，做错重置回第 1 天。</p>
+            <div class="form-item" style="margin-top:10px"><label>FSRS 目标记忆保留率</label>
+              <select class="select" id="setRetention"><option value="0.9">0.90 · 标准（推荐）</option><option value="0.85">0.85 · 省时</option><option value="0.8">0.80 · 极限省时</option><option value="0.95">0.95 · 高强度</option></select>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin-top:8px">复习评分采用FSRS四级（遗忘/吃力/会/秒杀），按遗忘曲线动态预测每题下次复习时间；上方间隔仅用于旧数据迁移与阶段显示。</p>
           </div>
           <div class="card mb0">
             <div class="card-title"><span class="left">打印默认设置</span></div>
@@ -914,6 +927,17 @@ function renderDashboard(){
   const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   const max=Math.max(1,...rows.map(r=>r[1]));
   $('#dashSubjectStats').innerHTML=rows.length?rows.map(([s,c])=>'<div class="subj-row"><span class="subj-name">'+esc(s.replace('考研',''))+'</span><div class="subj-bar"><i style="width:'+(c/max*100)+'%"></i></div><span class="subj-count">'+c+'</span></div>').join(''):'<div class="empty" style="padding:24px"><p>暂无错题数据，去上传第一道错题吧</p></div>';
+  const weak={};
+  S.mistakes.forEach(m=>{const k=m.knowledgePoint||m.subject;if(!k)return;const w=weak[k]=weak[k]||{kp:k,wrong:0,right:0};w.wrong+=m.wrongCount||0;w.right+=m.rightCount||0});
+  const wk=Object.values(weak).filter(w=>w.wrong>0).sort((a,b)=>b.wrong-a.wrong||((a.right/(a.right+a.wrong))-(b.right/(b.right+b.wrong)))).slice(0,5);
+  $('#dashWeakPoints').innerHTML=wk.length?wk.map(w=>{const tot=w.wrong+w.right,acc=Math.round(w.right/tot*100);return '<div class="subj-row"><span class="subj-name" title="'+esc(w.kp)+'">'+esc(w.kp)+'</span><div class="subj-bar"><i style="width:'+acc+'%;background:var(--danger)"></i></div><span class="subj-count" style="white-space:nowrap">'+w.wrong+'错·'+acc+'%</span><button class="btn btn-outline btn-sm" data-kp="'+esc(w.kp)+'">专项</button></div>'}).join(''):'<div class="empty" style="padding:24px"><p>暂无做错记录，继续加油</p></div>';
+}
+$('#dashWeakPoints').addEventListener('click',e=>{const b=e.target.closest('[data-kp]');if(b)startKpReview(b.dataset.kp)});
+function startKpReview(kp){
+  const list=S.mistakes.filter(m=>m.knowledgePoint===kp&&!m.isMastered).sort((a,b)=>(a.nextReviewTime||0)-(b.nextReviewTime||0));
+  if(!list.length){toast('该考点暂无未掌握错题');return}
+  S.reviewSession={queue:list.map(m=>m.id),idx:0,stats:{right:0,wrong:0},requeued:new Set()};
+  showPage('review');toast('专项复习「'+kp+'」共 '+list.length+' 题');
 }
 </script>
 <script>
@@ -1027,6 +1051,21 @@ $('#btnOCR').onclick=async()=>{
     else toast('未识别到文字','error');
   }catch(e){toast('OCR失败：'+(e.message||'首次使用需联网下载语言包'),'error')}
   $('#ocrProgress').style.display='none';
+};
+$('#btnAiAnalysis').onclick=async()=>{
+  const q=$('#fQuestion').value.trim();
+  if(!q){toast('请先填写题目内容','error');return}
+  const btn=$('#btnAiAnalysis');btn.disabled=true;btn.textContent='AI思考中…';
+  try{
+    const ans=$('#fAnswer').value.trim();
+    const out=await aiChat([{role:'system',content:'你是考研辅导老师。解答给定题目，只输出JSON对象：{"answer":"最终答案","analysis":"150字内解题要点，数学式用LaTeX表示","pitfall":"本题最常见易错点，20字内"}'},{role:'user',content:'科目：'+$('#fSubject').value+'\n题目：'+q.slice(0,800)+(ans?'\n学生已填答案（请校验对错）：'+ans:'')}],0.3);
+    const j=tryJSON(out);
+    if(j.analysis)$('#fAnalysis').value=String(j.analysis);
+    if(j.answer&&!ans)$('#fAnswer').value=String(j.answer);
+    if(j.pitfall)$('#fReason').value=$('#fReason').value.trim()?$('#fReason').value+'\n易错点：'+j.pitfall:String(j.pitfall);
+    toast('AI解析已填入，请核对','success');
+  }catch(e){toast('AI解析失败：'+(e.message==='NO_KEY'?'请先在设置页配置API Key':e.message),'error')}
+  btn.disabled=false;btn.textContent='AI解析';
 };
 /* ============ 豆包粘贴导入 ============ */
 const DOUBAO_PROMPT='请识别图片中的这道考研题目，严格按下面的格式回复，不要输出多余内容：\n【题目】题目完整内容（数学式用LaTeX，行内公式用$...$）\n【答案】最终答案\n【解析】简要解题步骤\n【考点】如：洛必达法则\n【章节】如：高等数学-极限与连续\n【错因】结合图片批注推测我做错的原因，看不出就写"待补充"';
@@ -1241,6 +1280,8 @@ function renderReviewPage(){
   $('#rvProgressText').textContent='第 '+(ses.idx+1)+' / '+ses.queue.length+' 题';
   $('#rvProgressBar').style.width=(ses.idx/ses.queue.length*100)+'%';
   $('#rvKpTag').textContent=m.knowledgePoint||m.subject||'';
+  if(m.fsrsS){const t=Math.max(0,(now()-(m.lastReviewedAt||m.createdAt))/DAY);$('#rvFsrsHint').textContent='上次间隔 '+Math.round(m.fsrsS)+' 天 · 预计遗忘率 '+Math.round((1-fsrsRecall(m,t))*100)+'%'}
+  else $('#rvFsrsHint').textContent='新题 · FSRS将自动安排复习节奏';
   const box=$('#rvQuestionBox');
   box.innerHTML=(m.maskedImage?'<div class="q-image-box"><img src="'+m.maskedImage+'"></div>':m.questionImage?'<div class="q-image-box"><img src="'+m.questionImage+'"></div>':'')+'<div class="q-text-box" id="rvQText">'+esc(m.question)+'</div>';
   try{renderMathInElement($('#rvQText'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})}catch(e){}
@@ -1262,21 +1303,61 @@ $('#btnShowAnswer').onclick=()=>{
   $('#btnShowAnswer').style.display='none';
   try{renderMathInElement($('#rvAnsText').parentNode,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})}catch(e){}
 };
-async function reviewResult(kind){
+/* ---- FSRS-4.5 调度引擎 ---- */
+const FSRS_W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
+const FSRS_DECAY=-0.5,FSRS_FACTOR=19/81;
+const fsrsClamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+function fsrsRecall(m,t){const s=m.fsrsS||1;return Math.pow(1+FSRS_FACTOR*(t/s),FSRS_DECAY)}
+function ensureFsrs(m){if(m.fsrsS)return;const iv=S.settings.intervals;m.fsrsS=fsrsClamp(iv[Math.min(m.reviewStage||0,iv.length-1)]||1,0.1,3650);m.fsrsD=5.5;m.fsrsReps=m.reviewStage||0;m.fsrsLapses=m.wrongCount||0}
+function fsrsReview(m,G,ret){
+  const t=Math.max(0,(now()-(m.lastReviewedAt||m.createdAt))/DAY);
+  const W=FSRS_W;let s=m.fsrsS,D=m.fsrsD;
+  if(!s){s=fsrsClamp(W[G-1],0.1,3650);D=fsrsClamp(W[4]-(G-3)*W[5],1,10)}
+  else{
+    const R=fsrsRecall(m,t);
+    if(G===1)s=W[11]*Math.pow(D,-W[12])*(Math.pow(s+1,W[13])-1)*Math.exp(W[14]*(1-R));
+    else s=s*(1+Math.exp(W[8])*(11-D)*Math.pow(s,-W[9])*(Math.exp(W[10]*(1-R))-1)*(G===2?W[15]:1)*(G===4?W[16]:1));
+    D=fsrsClamp(D-W[6]*(G-3),1,10);
+    D=fsrsClamp(W[7]*fsrsClamp(W[4]-(G-3)*W[5],1,10)+(1-W[7])*D,1,10);
+  }
+  s=fsrsClamp(s,0.1,36500);
+  const interval=Math.max(1,Math.round(s/FSRS_FACTOR*(Math.pow(ret,1/FSRS_DECAY)-1)));
+  m.fsrsS=s;m.fsrsD=D;m.fsrsReps=(m.fsrsReps||0)+1;if(G===1)m.fsrsLapses=(m.fsrsLapses||0)+1;
+  return interval;
+}
+async function reviewResult(kind,G){
   const ses=S.reviewSession;if(!ses)return;
   const m=S.mistakes.find(x=>x.id===ses.queue[ses.idx]);if(!m)return;
   const iv=S.settings.intervals;
-  if(kind==='correct'){m.reviewStage=Math.min((m.reviewStage||0)+1,iv.length-1);m.rightCount=(m.rightCount||0)+1;m.nextReviewTime=now()+iv[m.reviewStage]*DAY;ses.stats.right++;toast('进入 '+stageLabel(iv[m.reviewStage])+'，下次复习 '+fmtDate(m.nextReviewTime),'success')}
-  else if(kind==='wrong'){m.reviewStage=0;m.wrongCount=(m.wrongCount||0)+1;m.nextReviewTime=now()+iv[0]*DAY;ses.stats.wrong++;if(!ses.requeued)ses.requeued=new Set();if(!ses.requeued.has(m.id)){ses.requeued.add(m.id);ses.queue.push(m.id)}toast('已重置到 '+stageLabel(iv[0]),'error')}
-  else if(kind==='master'){m.isMastered=true;toast('已标记掌握，不再安排复习','success')}
+  if(kind==='master'){m.isMastered=true;toast('已标记掌握，不再安排复习','success')}
+  else if(kind==='rate'){
+    ensureFsrs(m);
+    const ret=parseFloat(S.settings.fsrsRetention)||0.9;
+    const interval=fsrsReview(m,G,ret);
+    m.nextReviewTime=now()+interval*DAY;
+    if(G===1){m.wrongCount=(m.wrongCount||0)+1;ses.stats.wrong++;if(!ses.requeued)ses.requeued=new Set();if(!ses.requeued.has(m.id)){ses.requeued.add(m.id);ses.queue.push(m.id)}}
+    else{m.rightCount=(m.rightCount||0)+1;ses.stats.right++}
+    m.reviewStage=G===1?0:Math.min((m.reviewStage||0)+1,iv.length-1);
+    toast('FSRS：'+interval+' 天后复习（'+fmtDate(m.nextReviewTime)+'）'+(G===1?' · 已重新排队':''),'success');
+  }
   m.lastReviewedAt=now();
   await dbPut('mistakes',m);await loadUserData();
   ses.idx++;renderReviewPage();
 }
-$('#btnCorrect').onclick=()=>reviewResult('correct');
-$('#btnWrong').onclick=()=>reviewResult('wrong');
+const RATE_BTN={rvG1:1,rvG2:2,rvG3:3,rvG4:4};
+Object.keys(RATE_BTN).forEach(id=>{$('#'+id).onclick=()=>reviewResult('rate',RATE_BTN[id])});
 $('#btnMaster').onclick=()=>reviewResult('master');
 $('#btnRvVariation').onclick=()=>{const ses=S.reviewSession;if(!ses)return;const m=S.mistakes.find(x=>x.id===ses.queue[ses.idx]);if(m){S.varMistakeId=m.id;showPage('variation')}};
+document.addEventListener('keydown',e=>{
+  if(!S.reviewSession)return;
+  const pg=document.getElementById('page-review');
+  if(!pg||!pg.classList.contains('active'))return;
+  const t=e.target&&e.target.tagName;
+  if(t==='INPUT'||t==='TEXTAREA')return;
+  const shown=$('#rvAnsPanel').classList.contains('show');
+  if(e.code==='Space'&&!shown&&$('#btnShowAnswer').style.display!=='none'){e.preventDefault();$('#btnShowAnswer').click()}
+  else if(/^[1-4]$/.test(e.key)&&shown){e.preventDefault();reviewResult('rate',+e.key)}
+});
 
 /* ============ 变式训练 ============ */
 let varCache=null;
@@ -1557,6 +1638,7 @@ $('#btnAiReason').onclick=()=>runAiExtract('#btnAiReason');
 function renderSettings(){
   applyTheme(S.settings.theme);
   S.settings.intervals.forEach((n,i)=>{const el=$('#iv'+(i+1));if(el&&document.activeElement!==el)el.value=n});
+  const rt=$('#setRetention');if(rt)rt.value=String(S.settings.fsrsRetention||0.9);
   const P=S.settings.print;
   $('#setPaper').value=P.paper;$('#setAnsPos').value=P.ansPos;$('#setBlank').value=String(P.blank);$('#setInk').value=P.ink?'on':'off';
   $('#setApiKey').value=S.settings.api.key;$('#setApiModel').value=S.settings.api.model;$('#setApiBase').value=S.settings.api.base;
@@ -1584,6 +1666,7 @@ $('#userList').addEventListener('click',async e=>{
   });
 });
 [1,2,3,4,5].forEach(i=>{$('#iv'+i).addEventListener('change',()=>{const v=Math.max(1,parseInt($('#iv'+i).value)||1);$('#iv'+i).value=v;S.settings.intervals[i-1]=v;saveSettings();toast('复习间隔已更新','success')})});
+$('#setRetention').addEventListener('change',()=>{S.settings.fsrsRetention=parseFloat($('#setRetention').value)||0.9;saveSettings();toast('目标记忆保留率已更新，FSRS将按新目标调度','success')});
 [['setPaper','paper'],['setAnsPos','ansPos'],['setBlank','blank'],['setInk','ink']].forEach(([id,key])=>{$('#'+id).addEventListener('change',()=>{const v=$('#'+id).value;if(key==='ink')S.settings.print.ink=(v==='on');else if(key==='blank')S.settings.print.blank=+v;else S.settings.print[key]=v;saveSettings();toast('打印默认设置已保存','success')})});
 [['setApiKey','key'],['setApiModel','model'],['setApiBase','base']].forEach(([id,key])=>{$('#'+id).addEventListener('change',()=>{S.settings.api[key]=$('#'+id).value.trim();saveSettings();toast('API配置已保存（本地）','success')})});
 $('#btnAddUser').onclick=()=>{$('#newUserName').value='';$('#modalUser').classList.add('show');setTimeout(()=>$('#newUserName').focus(),50)};
