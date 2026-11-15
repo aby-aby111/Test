@@ -751,6 +751,7 @@ a{color:var(--primary);text-decoration:none}
                 <option value="dashscope">通义千问 Qwen</option>
                 <option value="ark">豆包（火山方舟）</option>
                 <option value="openrouter">OpenRouter</option>
+                <option value="agnes">Agnes AI（免费网关）</option>
                 <option value="custom">自定义（OpenAI 兼容接口）</option>
               </select>
             </div>
@@ -1683,7 +1684,7 @@ $('#userList').addEventListener('click',async e=>{
 $('#setRetention').addEventListener('change',()=>{S.settings.fsrsRetention=parseFloat($('#setRetention').value)||0.9;saveSettings();toast('目标记忆保留率已更新，FSRS将按新目标调度','success')});
 [['setPaper','paper'],['setAnsPos','ansPos'],['setBlank','blank'],['setInk','ink']].forEach(([id,key])=>{$('#'+id).addEventListener('change',()=>{const v=$('#'+id).value;if(key==='ink')S.settings.print.ink=(v==='on');else if(key==='blank')S.settings.print.blank=+v;else S.settings.print[key]=v;saveSettings();toast('打印默认设置已保存','success')})});
 [['setApiKey','key'],['setApiModel','model'],['setApiBase','base']].forEach(([id,key])=>{$('#'+id).addEventListener('change',()=>{S.settings.api[key]=$('#'+id).value.trim();saveSettings();toast('API配置已保存（本地）','success')})});
-const API_PROVIDERS={deepseek:{base:'https://api.deepseek.com',model:'deepseek-chat',label:'DeepSeek'},siliconflow:{base:'https://api.siliconflow.cn/v1',model:'deepseek-ai/DeepSeek-V3',label:'硅基流动 SiliconFlow'},zhipu:{base:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-flash',label:'智谱 GLM'},moonshot:{base:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k',label:'Kimi（月之暗面）'},dashscope:{base:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus',label:'通义千问 Qwen'},ark:{base:'https://ark.cn-beijing.volces.com/api/v3',model:'',label:'豆包（火山方舟）'},openrouter:{base:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat',label:'OpenRouter'}};
+const API_PROVIDERS={deepseek:{base:'https://api.deepseek.com',model:'deepseek-chat',label:'DeepSeek'},siliconflow:{base:'https://api.siliconflow.cn/v1',model:'deepseek-ai/DeepSeek-V3',label:'硅基流动 SiliconFlow'},zhipu:{base:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-flash',label:'智谱 GLM'},moonshot:{base:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k',label:'Kimi（月之暗面）'},dashscope:{base:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus',label:'通义千问 Qwen'},ark:{base:'https://ark.cn-beijing.volces.com/api/v3',model:'',label:'豆包（火山方舟）'},openrouter:{base:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat',label:'OpenRouter'},agnes:{base:'https://api.agnes-ai.com/v1',model:'agnes-2.0-flash',label:'Agnes AI（免费网关）'}};
 $('#setApiProvider').addEventListener('change',()=>{
   const p=$('#setApiProvider').value;S.settings.api.provider=p;
   const pr=API_PROVIDERS[p];
