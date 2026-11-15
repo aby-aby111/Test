@@ -476,14 +476,15 @@ a{color:var(--primary);text-decoration:none}
               <button class="btn btn-sm btn-ghost" id="toolCancelCrop" style="display:none">取消</button>
             </div>
             <div class="tool-bar" id="imgEntry">
-              <button class="btn btn-outline" style="flex:1" id="btnPickFile">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>上传图片
-              </button>
+              <label class="btn btn-outline" style="flex:1;justify-content:center" for="fileInput">
+                <svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>上传图片
+              </label>
               <button class="btn btn-outline" style="flex:1" id="btnCamera">
                 <svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11z"/></svg>拍照
               </button>
             </div>
-            <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none">
+            <input type="file" id="fileInput" accept="image/*" style="display:none">
+            <p style="font-size:12px;color:var(--muted);margin-top:6px;text-align:center">点击选择，或直接把图片拖到上方预览区</p>
             <div class="tool-bar">
               <button class="btn btn-primary" style="flex:1" id="btnOCR">
                 <svg viewBox="0 0 24 24"><path d="M4 8V4h4V2H2v6zm14-4v2h4v4h2V2zM4 16v4h4v2H2v-6zm16 0h2v6h-6v-2h4zM7 7h10v10H7zm2 2v6h6V9z"/></svg>离线文字识别 (OCR)
@@ -924,6 +925,7 @@ function loadImageToCanvas(src){
     c.style.display='block';$('#imgStage').style.display='none';$('#imgTools').style.display='flex';
     setCropUI(false);redrawCanvas();
   };
+  im.onerror=()=>toast('图片读取失败：文件可能损坏或格式不支持，请换一张试试','error');
   im.src=src;
 }
 function redrawCanvas(){
@@ -941,8 +943,19 @@ function getMaskedImage(){
   U.strokes.forEach(st=>{ctx.strokeStyle=st.color;ctx.lineWidth=st.size;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();st.pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke()});
   return c.toDataURL('image/jpeg',.85);
 }
-$('#btnPickFile').onclick=()=>$('#fileInput').click();
-$('#fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>loadImageToCanvas(r.result);r.readAsDataURL(f);e.target.value=''};
+$('#fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>loadImageToCanvas(r.result);r.onerror=()=>toast('文件读取失败','error');r.readAsDataURL(f);e.target.value=''};
+['#imgStage','#editCanvas'].forEach(sel=>{
+  const el=$(sel);
+  el.addEventListener('dragover',e=>{e.preventDefault();el.style.outline='2px dashed var(--primary)'});
+  el.addEventListener('dragleave',()=>{el.style.outline=''});
+  el.addEventListener('drop',e=>{
+    e.preventDefault();el.style.outline='';
+    const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(!f)return;
+    if(!f.type||!f.type.startsWith('image/')){toast('请拖入图片文件','error');return}
+    const r=new FileReader();r.onload=()=>loadImageToCanvas(r.result);r.readAsDataURL(f);
+  });
+});
 $('#btnCamera').onclick=async()=>{
   try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});$('#camVideo').srcObject=stream;$('#modalCamera').classList.add('show');$('#modalCamera')._stream=stream}
   catch(e){toast('无法调用摄像头，请使用上传图片','error')}
@@ -979,15 +992,17 @@ $('#toolClear').onclick=()=>{U.strokes=[];redrawCanvas()};
 $('#btnOCR').onclick=async()=>{
   if(!U.img&&!$('#fQuestion').value.trim()){toast('请先上传题目图片','error');return}
   if(typeof Tesseract==='undefined'){toast('OCR库未加载（需联网加载一次），可手动输入题目','error');return}
-  $('#ocrProgress').style.display='block';$('#ocrBar').style.width='0%';$('#ocrStatus').textContent='正在识别中文+英文…';
+  $('#ocrProgress').style.display='block';$('#ocrBar').style.width='0%';$('#ocrStatus').textContent='正在加载OCR引擎与中文语言包（首次较慢）…';
+  let started=false;
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(started?'识别超时':'语言包下载超时：请检查网络后重试，或手动输入题目')),60000));
   try{
     const src=U.imgSrc||U.img.src;
-    const res=await Tesseract.recognize(src,'chi_sim+eng',{logger:m=>{if(m.status==='recognizing text'){$('#ocrBar').style.width=Math.round(m.progress*100)+'%';$('#ocrStatus').textContent='识别中 '+Math.round(m.progress*100)+'%'}}});
+    const res=await Promise.race([Tesseract.recognize(src,'chi_sim+eng',{logger:m=>{if(m.status==='recognizing text'){started=true;$('#ocrBar').style.width=Math.round(m.progress*100)+'%';$('#ocrStatus').textContent='识别中 '+Math.round(m.progress*100)+'%'}}}),timeout]);
     const text=(res.data.text||'').replace(/\n{3,}/g,'\n\n').trim();
     if(text){$('#fQuestion').value=($('#fQuestion').value?$('#fQuestion').value+'\n':'')+text;toast('识别完成，请校对文字','success')}
     else toast('未识别到文字','error');
-  }catch(e){toast('OCR失败：'+(e.message||'离线状态下首次使用需联网下载语言包'),'error')}
-  $('#ocrStatus').textContent='完成';
+  }catch(e){toast('OCR失败：'+(e.message||'首次使用需联网下载语言包'),'error')}
+  $('#ocrProgress').style.display='none';
 };
 $('#btnSaveMistake').onclick=async()=>{
   const question=$('#fQuestion').value.trim();
