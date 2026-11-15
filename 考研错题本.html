@@ -511,6 +511,15 @@ a{color:var(--primary);text-decoration:none}
               <div class="form-item"><label style="display:flex;align-items:center;gap:8px">解析<button class="btn btn-outline btn-sm" id="btnAiAnalysis" type="button">AI解析</button></label><textarea class="textarea" id="fAnalysis" rows="2" placeholder="选填，可让AI生成"></textarea></div>
             </div>
             <div class="form-item">
+              <label>答案照片 <span style="font-weight:normal;font-size:12px;color:var(--muted)">选填，可拍答案页/手写解答</span></label>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" id="btnAnsImg" type="button">📷 上传答案照片</button>
+                <button class="btn btn-sm btn-ghost" id="btnAnsImgDel" type="button" style="display:none">移除</button>
+              </div>
+              <div class="q-image-box" id="ansImgPreview" style="display:none;margin-top:8px"><img id="ansImgPrev" style="max-height:200px"></div>
+              <input type="file" id="ansImgInput" accept="image/*" style="display:none">
+            </div>
+            <div class="form-item">
               <label>错因 <button class="btn btn-sm btn-outline" id="btnAiReason" style="margin-left:8px">AI归纳错因</button></label>
               <textarea class="textarea" id="fReason" rows="2" placeholder="如：概念模糊 / 计算失误 / 思路偏差 / 审题错误"></textarea>
             </div>
@@ -956,7 +965,8 @@ function startKpReview(kp){
 </script>
 <script>
 /* ============ 上传错题 ============ */
-const U={img:null,imgSrc:'',strokes:[],mode:'mask',cropStart:null,cropRect:null};
+const U={img:null,imgSrc:'',ansImgSrc:'',strokes:[],mode:'mask',cropStart:null,cropRect:null};
+function ansImgUI(){const has=!!U.ansImgSrc;const p=$('#ansImgPreview');if(p){p.style.display=has?'':'none';if(has)$('#ansImgPrev').src=U.ansImgSrc}const d=$('#btnAnsImgDel');if(d)d.style.display=has?'':'none'}
 const stageLabel=n=>'第'+n+'天';
 const stageSteps=m=>S.settings.intervals.map((n,i)=>'<span class="stage-step'+(i<m.reviewStage?' done':'')+'">'+stageLabel(n)+'</span>').join('');
 function renderUploadMeta(){
@@ -969,7 +979,7 @@ function renderUploadMeta(){
   dl.innerHTML=[...set].map(c=>'<option value="'+esc(c)+'">').join('');
 }
 function resetUpload(){
-  S.editingId=null;U.img=null;U.imgSrc='';U.strokes=[];U.cropRect=null;U.mode='mask';
+  S.editingId=null;U.img=null;U.imgSrc='';U.ansImgSrc='';U.strokes=[];U.cropRect=null;U.mode='mask';ansImgUI();
   ['fQuestion','fAnswer','fAnalysis','fReason','fChapter','fKp','fTags'].forEach(id=>$('#'+id).value='');
   $('#fErrType').selectedIndex=0;
   $('#imgStage').style.display='';$('#editCanvas').style.display='none';$('#imgTools').style.display='none';
@@ -978,6 +988,16 @@ function resetUpload(){
   $('#ocrProgress').style.display='none';
   renderUploadMeta();
 }
+$('#btnAnsImg').onclick=()=>$('#ansImgInput').click();
+$('#btnAnsImgDel').onclick=()=>{U.ansImgSrc='';ansImgUI()};
+$('#ansImgInput').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(!f.type.startsWith('image/')){toast('请选择图片文件','error');e.target.value='';return}
+  const r=new FileReader();
+  r.onload=()=>{U.ansImgSrc=String(r.result);ansImgUI();toast('答案照片已添加，保存时一并入库','success')};
+  r.onerror=()=>toast('答案照片读取失败，请换一张试试','error');
+  r.readAsDataURL(f);e.target.value='';
+});
 function loadImageToCanvas(src){
   const im=new Image();
   im.onload=()=>{
@@ -1119,7 +1139,7 @@ $('#btnSaveMistake').onclick=async()=>{
     question,answer:$('#fAnswer').value.trim(),analysis:$('#fAnalysis').value.trim(),mistakeReason:$('#fReason').value.trim(),
     errType:$('#fErrType').value,
     tags:$('#fTags').value.split(/[，,]/).map(t=>t.trim()).filter(Boolean),
-    questionImage:U.imgSrc||null,maskedImage:(U.img&&U.strokes.length)?getMaskedImage():null,
+    questionImage:U.imgSrc||null,maskedImage:(U.img&&U.strokes.length)?getMaskedImage():null,answerImage:U.ansImgSrc||null,
     createdAt:S.editingId?(S.mistakes.find(m=>m.id===S.editingId)||{}).createdAt||now():now()
   };
   if(S.editingId){const old=S.mistakes.find(m=>m.id===S.editingId);Object.assign(rec,{reviewStage:old.reviewStage,nextReviewTime:old.nextReviewTime,isMastered:old.isMastered,lastReviewedAt:old.lastReviewedAt,rightCount:old.rightCount||0,wrongCount:old.wrongCount||0});await dbPut('mistakes',rec)}
@@ -1191,6 +1211,7 @@ function renderLibDetail(){
     <div class="kv"><span class="k">考点</span><span class="v">${esc(m.knowledgePoint||'-')}</span></div>
     <div class="kv"><span class="k">错误类型</span><span class="v">${esc(m.errType||'-')}</span></div>
     <div class="kv"><span class="k">答案</span><span class="v">${esc(m.answer||'-')}</span></div>
+    ${m.answerImage?'<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">答案照片</div><img class="detail-img" src="'+m.answerImage+'"></div>':''}
     <div class="kv"><span class="k">解析</span><span class="v">${esc(m.analysis||'-')}</span></div>
     <div class="kv"><span class="k">错因</span><span class="v">${esc(m.mistakeReason||'-')}</span></div>
     <div class="kv"><span class="k">复习阶段</span><span class="v"><span class="stage-steps">${stageSteps(m)}</span></span></div>
@@ -1214,7 +1235,7 @@ $('#libDetail').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const id=b.dataset.id,m=S.mistakes.find(x=>x.id===id);if(!m)return;
   const act=b.dataset.act;
-  if(act==='edit'){S.editingId=id;const im=m.maskedImage||m.questionImage;if(im)loadImageToCanvas(im);$('#fSubject').value=m.subject||SUBJECTS[0];['chapter','knowledgePoint'].forEach(()=>{});$('#fChapter').value=m.chapter||'';$('#fKp').value=m.knowledgePoint||'';$('#fQuestion').value=m.question;$('#fAnswer').value=m.answer||'';$('#fAnalysis').value=m.analysis||'';$('#fReason').value=m.mistakeReason||'';$('#fErrType').value=m.errType||ERR_TYPES[0];$('#fTags').value=(m.tags||[]).join(', ');renderUploadMeta();showPage('upload')}
+  if(act==='edit'){S.editingId=id;const im=m.maskedImage||m.questionImage;if(im)loadImageToCanvas(im);U.ansImgSrc=m.answerImage||'';ansImgUI();$('#fSubject').value=m.subject||SUBJECTS[0];['chapter','knowledgePoint'].forEach(()=>{});$('#fChapter').value=m.chapter||'';$('#fKp').value=m.knowledgePoint||'';$('#fQuestion').value=m.question;$('#fAnswer').value=m.answer||'';$('#fAnalysis').value=m.analysis||'';$('#fReason').value=m.mistakeReason||'';$('#fErrType').value=m.errType||ERR_TYPES[0];$('#fTags').value=(m.tags||[]).join(', ');renderUploadMeta();showPage('upload')}
   else if(act==='master'){m.isMastered=true;await dbPut('mistakes',m);await loadUserData();renderLibrary();toast('已标记掌握','success')}
   else if(act==='unmaster'){m.isMastered=false;m.nextReviewTime=now();await dbPut('mistakes',m);await loadUserData();renderLibrary()}
   else if(act==='reset'){m.isMastered=false;m.reviewStage=0;m.nextReviewTime=now()+S.settings.intervals[0]*DAY;await dbPut('mistakes',m);await loadUserData();renderLibrary();toast('已重置到'+stageLabel(S.settings.intervals[0]),'success')}
@@ -1317,6 +1338,7 @@ $('#btnShowAnswer').onclick=()=>{
   if(ref)html+='<div class="ans-line"><b>易错点：</b><span style="color:var(--tag-text)">'+esc(ref.point.syllabus)+'</span></div>';
   if(m.errType)html+='<div class="ans-line"><b>错误类型：</b><span class="tag tag-orange">'+esc(m.errType)+'</span></div>';
   if(m.questionImage&&m.maskedImage&&m.maskedImage!==m.questionImage)html+='<div class="ans-line"><b>原题照片（含答案）：</b></div><div class="q-image-box"><img src="'+m.questionImage+'" style="max-height:320px;object-fit:contain"></div>';
+  if(m.answerImage)html+='<div class="ans-line"><b>答案照片：</b></div><div class="q-image-box"><img src="'+m.answerImage+'" style="max-height:320px;object-fit:contain"></div>';
   $('#rvAnswerContent').innerHTML=html;
   $('#rvAnsPanel').classList.add('show');
   $('#btnShowAnswer').style.display='none';
