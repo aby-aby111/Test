@@ -1178,9 +1178,12 @@ function renderLibrary(){
 function renderLibDetail(){
   const m=S.mistakes.find(x=>x.id===S.libDetailId);
   if(!m){S.libDetailId=null;return}
-  const img=m.maskedImage||m.questionImage;
+  const bothImg=!!m.maskedImage&&!!m.questionImage&&m.maskedImage!==m.questionImage;
+  const imgHtml=bothImg
+    ?'<div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn btn-sm" data-act="imgview" data-imgtype="mask" style="background:var(--primary);color:#fff;border-color:var(--primary)">遮挡图</button><button class="btn btn-sm btn-outline" data-act="imgview" data-imgtype="orig">原图（含答案）</button></div><img class="detail-img" id="libDetailImg" src="'+m.maskedImage+'">'
+    :(m.maskedImage||m.questionImage)?'<img class="detail-img" src="'+(m.maskedImage||m.questionImage)+'">':'';
   $('#libDetail').innerHTML=`
-    ${img?'<img class="detail-img" src="'+img+'">':''}
+    ${imgHtml}
     <div style="margin-bottom:10px;line-height:1.9;font-size:14px" id="libQText">${esc(m.question)}</div>
     <div style="margin-bottom:12px">${(m.tags||[]).map(t=>'<span class="tag" style="margin-right:6px">'+esc(t)+'</span>').join('')}</div>
     <div class="kv"><span class="k">科目</span><span class="v">${esc(m.subject||'-')}</span></div>
@@ -1216,6 +1219,7 @@ $('#libDetail').addEventListener('click',async e=>{
   else if(act==='unmaster'){m.isMastered=false;m.nextReviewTime=now();await dbPut('mistakes',m);await loadUserData();renderLibrary()}
   else if(act==='reset'){m.isMastered=false;m.reviewStage=0;m.nextReviewTime=now()+S.settings.intervals[0]*DAY;await dbPut('mistakes',m);await loadUserData();renderLibrary();toast('已重置到'+stageLabel(S.settings.intervals[0]),'success')}
   else if(act==='var'){S.varMistakeId=id;showPage('variation')}
+  else if(act==='imgview'){$('#libDetailImg').src=b.dataset.imgtype==='orig'?m.questionImage:m.maskedImage;$$('#libDetail [data-act="imgview"]').forEach(x=>{const on=x.dataset.imgtype===b.dataset.imgtype;x.style.background=on?'var(--primary)':'';x.style.color=on?'#fff':'';x.style.borderColor=on?'var(--primary)':'';x.classList.toggle('btn-outline',!on)})}
   else if(act==='del'){confirmBox('删除错题','删除后不可恢复，确定删除这道错题吗？',async()=>{await dbDel('mistakes',id);if(S.libDetailId===id)S.libDetailId=null;await loadUserData();renderLibrary();toast('已删除','success')})}
 });
 [['libSearch','q'],['libSubject','subject'],['libStatus','status'],['libErrType','errType'],['libStage','stage'],['libTime','time'],['libTag','tag']].forEach(([id,key])=>{
@@ -1312,6 +1316,7 @@ $('#btnShowAnswer').onclick=()=>{
   if(m.mistakeReason)html+='<div class="ans-line"><b>错因：</b>'+esc(m.mistakeReason)+'</div>';
   if(ref)html+='<div class="ans-line"><b>易错点：</b><span style="color:var(--tag-text)">'+esc(ref.point.syllabus)+'</span></div>';
   if(m.errType)html+='<div class="ans-line"><b>错误类型：</b><span class="tag tag-orange">'+esc(m.errType)+'</span></div>';
+  if(m.questionImage&&m.maskedImage&&m.maskedImage!==m.questionImage)html+='<div class="ans-line"><b>原题照片（含答案）：</b></div><div class="q-image-box"><img src="'+m.questionImage+'" style="max-height:320px;object-fit:contain"></div>';
   $('#rvAnswerContent').innerHTML=html;
   $('#rvAnsPanel').classList.add('show');
   $('#btnShowAnswer').style.display='none';
