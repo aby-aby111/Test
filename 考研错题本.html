@@ -497,6 +497,10 @@ a{color:var(--primary);text-decoration:none}
           </div>
           <div class="card flex-1">
             <div class="card-title"><span class="left">题目信息（识别后可手动修正）</span></div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <button class="btn btn-outline btn-sm" id="btnDoubao">📋 豆包粘贴导入</button>
+              <span style="font-size:12px;color:var(--muted)">拍照→丢给豆包→复制回复→这里一键填入</span>
+            </div>
             <div class="form-item"><label>题目 *</label><textarea class="textarea" id="fQuestion" placeholder="输入或通过OCR识别题目内容，支持 $公式$ 渲染" rows="4"></textarea></div>
             <div class="form-row">
               <div class="form-item"><label>答案</label><textarea class="textarea" id="fAnswer" rows="2" placeholder="选填"></textarea></div>
@@ -807,6 +811,26 @@ a{color:var(--primary);text-decoration:none}
   </div>
 </div>
 
+<div class="modal-mask" id="modalDoubao">
+  <div class="modal modal-lg">
+    <div class="modal-head"><h3>从豆包粘贴导入错题</h3><button class="icon-btn" data-close="modalDoubao">✕</button></div>
+    <div class="modal-body">
+      <div class="form-item">
+        <label>第1步 · 把这段指令发给豆包（配合题目图片）</label>
+        <textarea class="textarea" id="doubaoPrompt" rows="5" readonly style="font-size:12px"></textarea>
+        <button class="btn btn-outline btn-sm" id="btnCopyPrompt" style="margin-top:6px">复制指令</button>
+      </div>
+      <div class="form-item">
+        <label>第2步 · 粘贴豆包的回复</label>
+        <textarea class="textarea" id="doubaoPaste" rows="8" placeholder="把豆包识别的整段回复粘贴到这里，会自动按【题目】【答案】等标签拆分填入表单"></textarea>
+        <button class="btn btn-outline btn-sm" id="btnReadClip" style="margin-top:6px">读取剪贴板（可选）</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted)">提示：只复制到题目文字也行，标签不全会保留在原字段不覆盖；图片本身仍可在左侧上传用于遮挡复习。</p>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-close="modalDoubao">取消</button><button class="btn btn-primary" id="doubaoImportOk">解析并填入表单</button></div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 <div id="printArea"></div>
 
@@ -1003,6 +1027,35 @@ $('#btnOCR').onclick=async()=>{
     else toast('未识别到文字','error');
   }catch(e){toast('OCR失败：'+(e.message||'首次使用需联网下载语言包'),'error')}
   $('#ocrProgress').style.display='none';
+};
+/* ============ 豆包粘贴导入 ============ */
+const DOUBAO_PROMPT='请识别图片中的这道考研题目，严格按下面的格式回复，不要输出多余内容：\n【题目】题目完整内容（数学式用LaTeX，行内公式用$...$）\n【答案】最终答案\n【解析】简要解题步骤\n【考点】如：洛必达法则\n【章节】如：高等数学-极限与连续\n【错因】结合图片批注推测我做错的原因，看不出就写"待补充"';
+$('#doubaoPrompt').value=DOUBAO_PROMPT;
+$('#btnDoubao').onclick=()=>{$('#doubaoPaste').value='';$('#modalDoubao').classList.add('show')};
+$('#btnCopyPrompt').onclick=async()=>{
+  try{await navigator.clipboard.writeText(DOUBAO_PROMPT);toast('指令已复制，去豆包粘贴发送','success')}
+  catch(e){$('#doubaoPrompt').removeAttribute('readonly');$('#doubaoPrompt').select();toast('已全选指令文本，请手动Ctrl+C复制')}
+};
+$('#btnReadClip').onclick=async()=>{
+  try{const t=await navigator.clipboard.readText();if(t&&t.trim()){$('#doubaoPaste').value=t;toast('已读取剪贴板','success')}else toast('剪贴板为空')}
+  catch(e){toast('浏览器未授权读取剪贴板，请直接在文本框里Ctrl+V','error')}
+};
+$('#doubaoImportOk').onclick=()=>{
+  const raw=$('#doubaoPaste').value.trim();
+  if(!raw){toast('请先粘贴豆包回复','error');return}
+  const grab=names=>{
+    for(const name of names){
+      const m=raw.match(new RegExp('【\\s*'+name+'\\s*】([\\s\\S]*?)(?=【|$)'));
+      if(m){const v=m[1].replace(/[*_#`]+/g,'').trim();if(v)return v}
+    }
+    return '';
+  };
+  const map=[['fQuestion',['题目','题','题目内容']],['fAnswer',['答案','最终答案','正确答案']],['fAnalysis',['解析','解题过程','解答','解题步骤']],['fKp',['考点','核心考点','知识点']],['fChapter',['章节','章节考点']],['fReason',['错因','错误原因','错误类型','易错点']]];
+  let n=0;
+  map.forEach(([id,names])=>{const v=grab(names);if(v){$(id).value=v;n++}});
+  $('#modalDoubao').classList.remove('show');
+  if(n)toast('已填入 '+n+' 个字段，请核对后保存','success');
+  else{$('#fQuestion').value=raw.replace(/[*_#`]+/g,'');toast('未识别到【标签】，已整段填入题目框','success')}
 };
 $('#btnSaveMistake').onclick=async()=>{
   const question=$('#fQuestion').value.trim();
